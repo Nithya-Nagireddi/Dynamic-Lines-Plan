@@ -1,5 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import time
+_last_time = 0
+
 
 station_x = [
     0, 3, 6, 9, 12, 18, 24, 30, 36, 42, 48,
@@ -70,32 +73,68 @@ def draw_body():
     ax_body.axis('equal')
     ax_body.grid(True)
 
+
+#Two redraw functions
+def redraw_body_only():
+    for st, line in body_lines.items():
+        pts = body_plan[st]
+        Y = [p[0] for p in pts]
+        Z = [p[1] for p in pts]
+        Y_plot = [-y for y in Y] if st <= 10 else Y
+        line.set_data(Y_plot, Z)
+
+    for p in body_points:
+        st = p.station
+        i  = p.index
+        y, z = body_plan[st][i]
+        p.set_offsets([[-y, z]] if st <= 10 else [[y, z]])
+
+    fig.canvas.draw_idle()
+
+def redraw_derived():
+    draw_half_breadth()
+    draw_sheer()
+    fig.canvas.draw_idle()
+
 #Interaction(Click & Drag)
 def on_pick(event):
     global dragging
     dragging = event.artist
 
 def on_motion(event):
-    global dragging
+    global dragging, _last_time
     if dragging is None or event.xdata is None:
         return
+
+    now = time.time()
+    if now - _last_time < 0.02:  # ~50 FPS
+        return
+    _last_time = now
 
     st = dragging.station
     i  = dragging.index
 
-    new_y = abs(event.xdata)   # ALWAYS store positive Y
-    new_z = event.ydata
+    body_plan[st][i] = (abs(event.xdata), event.ydata)
+    redraw_body_only()
 
-    body_plan[st][i] = (new_y, new_z)
-    redraw_all()
+
 
 def on_release(event):
     global dragging
     dragging = None
+    redraw_derived()
+
 
 fig.canvas.mpl_connect('pick_event', on_pick)
 fig.canvas.mpl_connect('motion_notify_event', on_motion)
 fig.canvas.mpl_connect('button_release_event', on_release)
+
+hb_lines = {}
+hb_points = {}
+
+sheer_lines = {}
+sheer_points = {}
+
 
 #Half Breadth Plan (xy)
 #Extracting points
@@ -115,17 +154,25 @@ def extract_half_breadth(z_step=1.0):
 
     return hb
 #Drawing points
-def draw_half_breadth():
-    ax_hb.clear()
+def init_half_breadth():
     hb = extract_half_breadth()
 
     for z, pts in hb.items():
         pts = sorted(pts)
-        ax_hb.plot([p[0] for p in pts], [p[1] for p in pts], 'y')
+
+        x = [p[0] for p in pts]
+        y = [p[1] for p in pts]
+
+        line, = ax_hb.plot(x, y, color='gold', linewidth=1.2)
+        pts_scatter = ax_hb.scatter(x, y, color='red', s=15)
+
+        hb_lines[z] = line
+        hb_points[z] = pts_scatter
 
     ax_hb.set_title("HALF BREADTH PLAN (X–Y)")
     ax_hb.axis('equal')
     ax_hb.grid(True)
+
 
 
 #Side View (xz)
@@ -146,24 +193,66 @@ def extract_sheer(y_step=1.0):
 
     return sheer
 #Drawing points
-def draw_sheer():
-    ax_sheer.clear()
+def init_sheer():
     sheer = extract_sheer()
 
     for y, pts in sheer.items():
         pts = sorted(pts)
-        ax_sheer.plot([p[0] for p in pts], [p[1] for p in pts], 'w')
+
+        x = [p[0] for p in pts]
+        z = [p[1] for p in pts]
+
+        line, = ax_sheer.plot(x, z, color='cyan', linewidth=1.2)
+        pts_scatter = ax_sheer.scatter(x, z, color='red', s=15)
+
+        sheer_lines[y] = line
+        sheer_points[y] = pts_scatter
 
     ax_sheer.set_title("SIDE VIEW / SHEER (X–Z)")
     ax_sheer.axis('equal')
     ax_sheer.grid(True)
 
-def redraw_all():
-    draw_body()
-    draw_half_breadth()
-    draw_sheer()
+
+def update_half_breadth():
+    hb = extract_half_breadth()
+
+    for z, pts in hb.items():
+        if z not in hb_lines:
+            continue
+
+        pts = sorted(pts)
+        x = [p[0] for p in pts]
+        y = [p[1] for p in pts]
+
+        hb_lines[z].set_data(x, y)
+        hb_points[z].set_offsets(list(zip(x, y)))
+
+
+def update_sheer():
+    sheer = extract_sheer()
+
+    for y, pts in sheer.items():
+        if y not in sheer_lines:
+            continue
+
+        pts = sorted(pts)
+        x = [p[0] for p in pts]
+        z = [p[1] for p in pts]
+
+        sheer_lines[y].set_data(x, z)
+        sheer_points[y].set_offsets(list(zip(x, z)))
+
+
+def redraw_derived():
+    update_half_breadth()
+    update_sheer()
     fig.canvas.draw_idle()
-redraw_all()
+
+# ---- INITIAL DRAW (RUN ONCE) ----
+draw_body()
+init_half_breadth()
+init_sheer()
+
 plt.show()
 
 
