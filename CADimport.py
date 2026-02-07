@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
+from tkinter import filedialog, Tk
 import time
 _last_time = 0
 
@@ -9,32 +11,79 @@ station_x = [
     60, 72, 78, 84, 90, 96, 102, 105, 108, 111, 114, 120
 ]
 
+body_plan = {}
 
-body_plan = {
-0 : [(0,0),(0,0.5846),(0,1.1692),(0,1.753),(0,2.92),(0,4.092),(0,5.261),(0.11,6.43),(1.76,7.6),(2.97,8.76),(3.74,9.93)],
-1 : [(0,0),(0.11,0.5846),(0.11,1.1692),(0.11,1.753),(0.22,2.92),(0.33,4.092),(0.55,5.261),(1.76,6.43),(3.3,7.6),(4.51,8.76),(5.28,9.93)],
-2 : [(0,0),(0.33,0.5846),(0.55,1.1692),(0.66,1.753),(0.99,2.92),(1.32,4.092),(2.09,5.261),(3.3,6.43),(4.62,7.6),(5.72,8.76),(6.49,9.93)],
-3 : [(0,0),(0.55,0.5846),(0.99,1.1692),(1.21,1.753),(1.87,2.92),(2.53,4.092),(3.41,5.261),(4.62,6.43),(6.05,7.6),(6.93,8.76),(7.7,9.93)],
-4 : [(0,0),(0.99,0.5846),(1.54,1.1692),(1.98,1.753),(2.75,2.92),(3.63,4.092),(4.73,5.261),(6.05,6.43),(7.15,7.6),(7.92,8.76),(8.58,9.93)],
-5 : [(0,0),(2.09,0.5846),(2.97,1.1692),(3.63,1.753),(4.84,2.92),(6.05,4.092),(7.15,5.261),(8.03,6.43),(9.02,7.6),(9.559,8.76),(9.9,9.93)],
-6 : [(0,0),(3.63,0.5846),(4.73,1.1692),(5.5,1.753),(6.93,2.92),(8.03,4.092),(8.91,5.261),(9.68,6.43),(10.12,7.6),(10.45,8.76),(10.67,9.93)],                  
-7 : [(0,0),(5.39,0.5846),(6.6,1.1692),(7.48,1.753),(8.8,2.92),(9.68,4.092),(10.12,5.261),(10.56,6.43),(10.67,7.6),(10.89,8.76),(11,9.93)],
-8 : [ (0,0),(7.26,0.5846),(8.47,1.1692),(9.24,1.753),(10.12,2.92),(10.56,4.092),(10.78,5.261),(11,6.43),(11,7.6),(11,8.76),(11,9.93)],                
-9 : [(0,0),(8.8,0.5846),(9.79,1.1692),(10.23,1.753),(10.67,2.92),(11,4.092),(11,5.261),(11,6.43),(11,7.6),(11,8.76),(11,9.93)],
-10 : [ (0,0),(9.68,0.5846),(10.45,1.1692),(10.67,1.753),(11,2.92),(11,4.092),(11,5.261),(11,6.43),(11,7.6),(11,8.76),(11,9.93)],
-11 : [(0,0),(10.23,0.5846),(10.67,1.1692),(10.89,1.753),(11,2.92),(11,4.092),(11,5.261),(11,6.43),(11,7.6),(11,8.76),(11,9.93)],
-12 : [(0,0),(10.12,0.5846),(10.78,1.1692),(11,1.753),(11,2.92),(11,4.092),(11,5.261),(11,6.43),(11,7.6),(11,8.76),(11,9.93)],
-13 : [(0,0),(9.46,0.5846),(10.23,1.1692),(10.67,1.753),(11,2.92),(11,4.092),(11,5.261),(11,6.43),(11,7.6),(11,8.76),(11,9.93)],
-14 : [(0,0),(8.36,0.5846),(9.13,1.1692),(9.79,1.753),(10.34,2.92),(10.67,4.092),(10.89,5.261),(11,6.43),(11,7.6),(11,8.76),(11,9.93)],
-15 : [(0,0),(6.49,0.5846),(7.59,1.1692),(8.25,1.753),(9.02,2.92),(9.57,4.092),(10.01,5.261),(10.34,6.43),(10.45,7.6),(10.56,8.76),(10.67,9.93)],
-16 : [(0,0),(4.51,0.5846),(5.72,1.1692),(6.49,1.753),(7.37,2.92),(7.92,4.092),(8.47,5.261),(8.8,6.43),(9.02,7.6),(9.24,8.76),(9.46,9.93)],
-17 : [(0,0),(3.08,0.5846),(4.07,1.1692),(4.62,1.753),(5.5,2.92),(5.94,4.092),(6.38,5.261),(6.71,6.43),(7.04,7.6),(7.37,8.76),(7.7,9.93)],
-18 : [(0,0),(2.2,0.5846),(2.75,1.1692),(3.19,1.753),(3.63,2.92),(3.74,4.092),(3.85,5.261),(4.18,6.43),(4.4,7.6),(4.95,8.76),(5.5,9.93)],
-19 : [(0,0),(0.77,0.5846),(1.43,1.1692),(1.76,1.753),(2.31,2.92),(2.64,4.092),(2.97,5.261),(3.19,6.43),(3.52,7.6),(3.85,8.76),(4.18,9.93)],
-20 : [(0,0),(0.11,0.5846),(0.55,1.1692),(0.77,1.753),(1.32,2.92),(1.54,4.092),(1.76,5.261),(1.98,6.43),(2.31,7.6),(2.64,8.76),(2.97,9.93)],
-21 : [(0,0),(0,0.5846),(0,1.1692),(0.11,1.753),(0.33,2.92),(0.55,4.092),(0.77,5.261),(0.99,6.43),(1.21,7.6),(1.43,8.76),(1.76,9.93)],
-22 : [(0,0),(0,0.5846),(0,1.1692),(0,1.753),(0,2.92),(0,4.092),(0,5.261),(0,6.43),(0,7.6),(0.33,8.76),(0.66,9.93)]   
-}
+def load_body_plan_from_csv(filepath):
+    """
+    Load body plan data from CSV file.
+    CSV Format: Each cell contains "Y,Z" coordinate pair as text
+    - Rows: Z-levels
+    - Columns: Station names (STN 0, STN 1/4, STN 1/2, etc.)
+    - Cell values: "Y,Z" pairs (e.g., "0.11,0.5846")
+    """
+    try:
+        df = pd.read_csv(filepath, header=0)
+        print(f"CSV loaded successfully with shape: {df.shape}")
+        
+        body_plan_data = {}
+        
+        # Get station columns
+        station_cols = df.columns.tolist()
+        print(f"Stations found: {len(station_cols)}")
+        
+        # Build body_plan dictionary
+        for st_idx, st_col in enumerate(station_cols):
+            points = []
+            for cell_value in df[st_col]:
+                try:
+                    # Cell value should be in format "Y,Z" (e.g., "0.11,0.5846")
+                    if pd.notna(cell_value) and isinstance(cell_value, str):
+                        cell_str = str(cell_value).strip()
+                        if cell_str and ',' in cell_str:
+                            parts = cell_str.split(',')
+                            if len(parts) == 2:
+                                y_val = float(parts[0].strip())
+                                z_val = float(parts[1].strip())
+                                points.append((y_val, z_val))
+                except (ValueError, TypeError, IndexError) as cell_error:
+                    print(f"Warning: Skipping invalid value at station '{st_col}': {cell_value}")
+                    continue
+            
+            if points:
+                # Sort by Z value
+                body_plan_data[st_idx] = sorted(points, key=lambda p: p[1])
+        
+        if body_plan_data:
+            print(f"Body plan loaded successfully with {len(body_plan_data)} stations")
+            print(f"Total points loaded: {sum(len(pts) for pts in body_plan_data.values())}")
+            return body_plan_data
+        else:
+            print("Error: No valid data found in CSV")
+            return None
+    
+    except Exception as e:
+        print(f"Error loading CSV: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+def select_and_load_csv():
+    """
+    Open file dialog to select CSV file and load body plan data.
+    """
+    root = Tk()
+    root.withdraw()  # Hide the root window
+    
+    filepath = filedialog.askopenfilename(
+        title="Select Body Plan CSV file",
+        filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+    )
+    
+    if filepath:
+        return load_body_plan_from_csv(filepath)
+    else:
+        print("No file selected. Please provide a CSV file.")
+        return None
 
 #Creating Three axes for three plans no overlapping 
 
@@ -314,11 +363,16 @@ def redraw_derived():
     fig.canvas.draw_idle()
 
 # ---- INITIAL DRAW (RUN ONCE) ----
-draw_body()
-init_half_breadth()
-init_sheer()
+# Load body plan from CSV file
+body_plan = select_and_load_csv()
 
-plt.show()
+if body_plan:
+    draw_body()
+    init_half_breadth()
+    init_sheer()
+    plt.show()
+else:
+    print("Failed to load body plan data.")
 
 
 
