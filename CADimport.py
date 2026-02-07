@@ -96,7 +96,7 @@ def redraw_derived():
     draw_sheer()
     fig.canvas.draw_idle()
 
-#Interaction(Click & Drag)
+#Interaction(Click & Drag) - UNIFIED FOR ALL THREE VIEWS
 def on_pick(event):
     global dragging
     dragging = event.artist
@@ -111,18 +111,33 @@ def on_motion(event):
         return
     _last_time = now
 
-    st = dragging.station
-    i  = dragging.index
-
-    body_plan[st][i] = (abs(event.xdata), event.ydata)
+    # Handle Body Plan dragging
+    if hasattr(dragging, 'station'):
+        st = dragging.station
+        i  = dragging.index
+        body_plan[st][i] = (abs(event.xdata), event.ydata)
+    
+    # Handle Half Breadth dragging (XY plane)
+    elif hasattr(dragging, 'z_level'):
+        z_level = dragging.z_level
+        x_new = event.xdata
+        y_new = event.ydata
+        update_body_plan_from_half_breadth(z_level, x_new, y_new)
+    
+    # Handle Side View dragging (XZ plane)
+    elif hasattr(dragging, 'y_level'):
+        y_level = dragging.y_level
+        x_new = event.xdata
+        z_new = event.ydata
+        update_body_plan_from_sheer(y_level, x_new, z_new)
+    
+    # Always redraw all views during motion for smooth sync
     redraw_body_only()
-
-
+    redraw_derived()
 
 def on_release(event):
     global dragging
     dragging = None
-    redraw_derived()
 
 
 fig.canvas.mpl_connect('pick_event', on_pick)
@@ -153,6 +168,28 @@ def extract_half_breadth(z_step=1.0):
             hb.setdefault(z, []).append((station_x[st], y))
 
     return hb
+
+#Reverse mapping: update body_plan from half_breadth drag
+def update_body_plan_from_half_breadth(z_level, x_new, y_new):
+    """Find and update the body plan point at the given z_level and nearest station to x_new"""
+    closest_st = min(range(len(station_x)), key=lambda st: abs(station_x[st] - x_new))
+    
+    pts = body_plan[closest_st]
+    pts_sorted = sorted(pts, key=lambda p: p[1])
+    
+    Y = np.array([p[0] for p in pts_sorted])
+    Z = np.array([p[1] for p in pts_sorted])
+    
+    # Find the indices of the points bracketing z_level
+    if z_level in Z:
+        idx = np.where(Z == z_level)[0][0]
+        body_plan[closest_st][pts.index(pts_sorted[idx])] = (abs(y_new), z_level)
+    else:
+        # Find two closest z values
+        z_diffs = np.abs(Z - z_level)
+        idx = np.argmin(z_diffs)
+        body_plan[closest_st][pts.index(pts_sorted[idx])] = (abs(y_new), Z[idx])
+
 #Drawing points
 def init_half_breadth():
     hb = extract_half_breadth()
@@ -164,7 +201,10 @@ def init_half_breadth():
         y = [p[1] for p in pts]
 
         line, = ax_hb.plot(x, y, color='gold', linewidth=1.2)
-        pts_scatter = ax_hb.scatter(x, y, color='red', s=15)
+        pts_scatter = ax_hb.scatter(x, y, color='red', s=15, picker=5)
+        
+        # Attach z_level metadata to each point for picking
+        pts_scatter.z_level = z
 
         hb_lines[z] = line
         hb_points[z] = pts_scatter
@@ -192,6 +232,28 @@ def extract_sheer(y_step=1.0):
             sheer.setdefault(y, []).append((station_x[st], z))
 
     return sheer
+
+#Reverse mapping: update body_plan from side_view drag
+def update_body_plan_from_sheer(y_level, x_new, z_new):
+    """Find and update the body plan point at the given y_level and nearest station to x_new"""
+    closest_st = min(range(len(station_x)), key=lambda st: abs(station_x[st] - x_new))
+    
+    pts = body_plan[closest_st]
+    pts_sorted = sorted(pts, key=lambda p: p[0])
+    
+    Y = np.array([p[0] for p in pts_sorted])
+    Z = np.array([p[1] for p in pts_sorted])
+    
+    # Find the indices of the points bracketing y_level
+    if y_level in Y:
+        idx = np.where(Y == y_level)[0][0]
+        body_plan[closest_st][pts.index(pts_sorted[idx])] = (y_level, z_new)
+    else:
+        # Find closest y value
+        y_diffs = np.abs(Y - y_level)
+        idx = np.argmin(y_diffs)
+        body_plan[closest_st][pts.index(pts_sorted[idx])] = (Y[idx], z_new)
+
 #Drawing points
 def init_sheer():
     sheer = extract_sheer()
@@ -203,7 +265,10 @@ def init_sheer():
         z = [p[1] for p in pts]
 
         line, = ax_sheer.plot(x, z, color='cyan', linewidth=1.2)
-        pts_scatter = ax_sheer.scatter(x, z, color='red', s=15)
+        pts_scatter = ax_sheer.scatter(x, z, color='red', s=15, picker=5)
+        
+        # Attach y_level metadata to each point for picking
+        pts_scatter.y_level = y
 
         sheer_lines[y] = line
         sheer_points[y] = pts_scatter
