@@ -1,8 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from tkinter import filedialog, Tk, simpledialog
+from tkinter import filedialog, Tk, simpledialog, messagebox
+from matplotlib.widgets import Button
 import time
+import os
 _last_time = 0
 
 # Station ratios for dividing the ship length
@@ -137,9 +139,13 @@ def select_and_load_csv():
 
 fig = plt.figure(figsize=(14,8))
 
-ax_hb   = fig.add_axes([0.08, 0.65, 0.84, 0.25])  # Half Breadth (XY)
-ax_body = fig.add_axes([0.08, 0.35, 0.84, 0.25])  # Body Plan (YZ)
-ax_sheer= fig.add_axes([0.08, 0.05, 0.84, 0.25])  # Side View (XZ)
+ax_hb   = fig.add_axes([0.08, 0.68, 0.84, 0.25])  # Half Breadth (XY)
+ax_body = fig.add_axes([0.08, 0.38, 0.84, 0.25])  # Body Plan (YZ)
+ax_sheer= fig.add_axes([0.08, 0.08, 0.84, 0.25])  # Side View (XZ)
+
+# Button axes at bottom
+ax_save_csv = fig.add_axes([0.35, 0.01, 0.12, 0.04])
+ax_save_img = fig.add_axes([0.53, 0.01, 0.12, 0.04])
 
 
 # Creating The Body Plan (yz)
@@ -149,6 +155,7 @@ dragging = None
 
 def draw_body():
     ax_body.clear()
+    body_points.clear()
 
     for st, pts in body_plan.items():
         Y = [p[0] for p in pts]
@@ -163,6 +170,7 @@ def draw_body():
             p = ax_body.scatter(y, z, c='r', s=30, picker=5)
             p.station = st
             p.index = i
+            p.view = 'body'
             body_points.append(p)
 
     ax_body.axvline(0, color='gray')
@@ -196,6 +204,12 @@ def redraw_derived():
 #Interaction(Click & Drag) - UNIFIED FOR ALL THREE VIEWS
 def on_pick(event):
     global dragging
+    
+    # Check if it's a double-click or specific interaction for editing
+    if hasattr(event.artist, 'view') and event.mouseevent.button == 3:  # Right-click to edit
+        edit_coordinates(event.artist)
+        return
+    
     dragging = event.artist
 
 def on_motion(event):
@@ -302,6 +316,7 @@ def init_half_breadth():
         
         # Attach z_level metadata to each point for picking
         pts_scatter.z_level = z
+        pts_scatter.view = 'hb'
 
         hb_lines[z] = line
         hb_points[z] = pts_scatter
@@ -366,6 +381,7 @@ def init_sheer():
         
         # Attach y_level metadata to each point for picking
         pts_scatter.y_level = y
+        pts_scatter.view = 'sheer'
 
         sheer_lines[y] = line
         sheer_points[y] = pts_scatter
@@ -411,6 +427,173 @@ def redraw_derived():
     fig.canvas.draw_idle()
 
 
+# Edit coordinates via point click
+def edit_coordinates(point_artist):
+    """Open dialog to edit coordinates when point is right-clicked"""
+    view = point_artist.view
+    
+    if view == 'body':
+        st = point_artist.station
+        i = point_artist.index
+        y, z = body_plan[st][i]
+        
+        result = simpledialog.askstring(
+            "Edit Coordinates",
+            f"Station {st}, Point {i}\nCurrent: Y={y:.4f}, Z={z:.4f}\n\nEnter new Y,Z coordinates (Format: Y,Z):",
+            initialvalue=f"{y:.4f},{z:.4f}"
+        )
+        
+        if result:
+            try:
+                parts = result.split(',')
+                new_y = float(parts[0].strip())
+                new_z = float(parts[1].strip())
+                body_plan[st][i] = (abs(new_y), new_z)
+                redraw_body_only()
+                redraw_derived()
+            except (ValueError, IndexError):
+                messagebox.showerror("Error", "Invalid format. Use: Y,Z")
+    
+    elif view == 'hb':
+        z_level = point_artist.z_level
+        # Get current position from the click event
+        offsets = point_artist.get_offsets()
+        if len(offsets) > 0:
+            # Find closest point to click
+            x_val = offsets[0][0]
+            y_val = offsets[0][1]
+            
+            result = simpledialog.askstring(
+                "Edit Coordinates",
+                f"Half Breadth Plan\nZ-Level: {z_level:.3f}\nCurrent: X={x_val:.4f}, Y={y_val:.4f}\n\nEnter new X,Y coordinates (Format: X,Y):",
+                initialvalue=f"{x_val:.4f},{y_val:.4f}"
+            )
+            
+            if result:
+                try:
+                    parts = result.split(',')
+                    new_x = float(parts[0].strip())
+                    new_y = float(parts[1].strip())
+                    update_body_plan_from_half_breadth(z_level, new_x, new_y)
+                    redraw_body_only()
+                    redraw_derived()
+                except (ValueError, IndexError):
+                    messagebox.showerror("Error", "Invalid format. Use: X,Y")
+    
+    elif view == 'sheer':
+        y_level = point_artist.y_level
+        # Get current position from the click event
+        offsets = point_artist.get_offsets()
+        if len(offsets) > 0:
+            x_val = offsets[0][0]
+            z_val = offsets[0][1]
+            
+            result = simpledialog.askstring(
+                "Edit Coordinates",
+                f"Side View\nY-Level: {y_level:.3f}\nCurrent: X={x_val:.4f}, Z={z_val:.4f}\n\nEnter new X,Z coordinates (Format: X,Z):",
+                initialvalue=f"{x_val:.4f},{z_val:.4f}"
+            )
+            
+            if result:
+                try:
+                    parts = result.split(',')
+                    new_x = float(parts[0].strip())
+                    new_z = float(parts[1].strip())
+                    update_body_plan_from_sheer(y_level, new_x, new_z)
+                    redraw_body_only()
+                    redraw_derived()
+                except (ValueError, IndexError):
+                    messagebox.showerror("Error", "Invalid format. Use: X,Z")
+
+
+# Save functions
+def save_to_csv(event):
+    """Save body plan data to CSV file"""
+    root = Tk()
+    root.withdraw()
+    
+    filepath = filedialog.asksaveasfilename(
+        title="Save Body Plan as CSV",
+        defaultextension=".csv",
+        filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+    )
+    
+    if filepath:
+        try:
+            # Determine max number of points
+            max_points = max(len(pts) for pts in body_plan.values())
+            
+            # Create column headers based on station ratios
+            station_names = []
+            for ratio in STATION_RATIOS[:len(body_plan)]:
+                if ratio == int(ratio):
+                    station_names.append(f"STN {int(ratio)}")
+                elif ratio == 0.25:
+                    station_names.append("STN 1/4")
+                elif ratio == 0.5:
+                    station_names.append("STN 1/2")
+                elif ratio == 0.75:
+                    station_names.append("STN 3/4")
+                elif ratio == 9.25:
+                    station_names.append("STN 9 1/4")
+                elif ratio == 9.5:
+                    station_names.append("STN 9 1/2")
+                elif ratio == 9.75:
+                    station_names.append("STN 9 3/4")
+                else:
+                    station_names.append(f"STN {ratio}")
+            
+            # Build data rows
+            data = {name: [] for name in station_names}
+            
+            for st_idx in range(len(body_plan)):
+                pts = body_plan[st_idx]
+                col_name = station_names[st_idx]
+                
+                for y, z in pts:
+                    data[col_name].append(f"{y:.4f},{z:.4f}")
+                
+                # Pad with empty strings if needed
+                while len(data[col_name]) < max_points:
+                    data[col_name].append("")
+            
+            # Create DataFrame and save
+            df = pd.DataFrame(data)
+            df.to_csv(filepath, index=False)
+            
+            messagebox.showinfo("Success", f"Data saved to:\n{filepath}")
+            print(f"Body plan saved to: {filepath}")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save CSV:\n{str(e)}")
+            print(f"Error saving CSV: {e}")
+    
+    root.destroy()
+
+
+def save_as_image(event):
+    """Save the figure as an image"""
+    root = Tk()
+    root.withdraw()
+    
+    filepath = filedialog.asksaveasfilename(
+        title="Save Figure as Image",
+        defaultextension=".png",
+        filetypes=[("PNG files", "*.png"), ("PDF files", "*.pdf"), ("All files", "*.*")]
+    )
+    
+    if filepath:
+        try:
+            fig.savefig(filepath, dpi=300, bbox_inches='tight')
+            messagebox.showinfo("Success", f"Figure saved to:\n{filepath}")
+            print(f"Figure saved to: {filepath}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save image:\n{str(e)}")
+            print(f"Error saving image: {e}")
+    
+    root.destroy()
+
+
 # Load body plan from CSV file
 body_plan = select_and_load_csv()
 
@@ -418,6 +601,14 @@ if body_plan:
     draw_body()
     init_half_breadth()
     init_sheer()
+    
+    # Create save buttons
+    btn_save_csv = Button(ax_save_csv, 'Save as CSV')
+    btn_save_csv.on_clicked(save_to_csv)
+    
+    btn_save_img = Button(ax_save_img, 'Save as Image')
+    btn_save_img.on_clicked(save_as_image)
+    
     plt.show()
 else:
     print("Failed to load body plan data.")
