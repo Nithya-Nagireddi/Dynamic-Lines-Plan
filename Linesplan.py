@@ -1,15 +1,63 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from tkinter import filedialog, Tk
+from tkinter import filedialog, Tk, simpledialog
 import time
 _last_time = 0
 
-
-station_x = [
-    0, 3, 6, 9, 12, 18, 24, 30, 36, 42, 48,
-    60, 72, 78, 84, 90, 96, 102, 105, 108, 111, 114, 120
+# Station ratios for dividing the ship length
+STATION_RATIOS = [
+    0, 0.25, 0.5, 0.75, 1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.25, 9.5, 9.75, 10
 ]
+
+def get_ship_length():
+    """
+    Prompt user to input the ship length (Length Between Perpendiculars).
+    Returns the ship length as a float.
+    """
+    root = Tk()
+    root.withdraw()  # Hide the root window
+    
+    while True:
+        ship_length = simpledialog.askfloat(
+            "Ship Length Input",
+            "Enter the ship length (Length Between Perpendiculars):",
+            minvalue=0.1
+        )
+        
+        if ship_length is None:
+            print("No ship length provided. Using default length of 120.")
+            root.destroy()
+            return 120.0
+        
+        if ship_length > 0:
+            print(f"Ship length set to: {ship_length}")
+            root.destroy()
+            return ship_length
+        else:
+            print("Ship length must be positive.")
+
+def calculate_station_x(ship_length):
+    """
+    Calculate station positions based on ship length and predefined ratios.
+    Formula: station_position = (ship_length / 10) × ratio
+    
+    Args:
+        ship_length: The ship length (Length Between Perpendiculars)
+    
+    Returns:
+        List of station positions
+    """
+    base_unit = ship_length / 10
+    stations = [base_unit * ratio for ratio in STATION_RATIOS]
+    print(f"\nStation positions calculated for ship length {ship_length}:")
+    print(f"Base unit (ship_length / 10): {base_unit}")
+    print(f"Station X positions: {stations}")
+    return stations
+
+# Get ship length from user and calculate stations
+ship_length = get_ship_length()
+station_x = calculate_station_x(ship_length)
 
 body_plan = {}
 
@@ -362,7 +410,7 @@ def redraw_derived():
     update_sheer()
     fig.canvas.draw_idle()
 
-# ---- INITIAL DRAW (RUN ONCE) ----
+
 # Load body plan from CSV file
 body_plan = select_and_load_csv()
 
