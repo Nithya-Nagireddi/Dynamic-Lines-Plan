@@ -179,7 +179,7 @@ def draw_body():
     ax_body.grid(True)
 
 
-#Two redraw functions
+# Redraw function for body plan
 def redraw_body_only():
     for st, line in body_lines.items():
         pts = body_plan[st]
@@ -194,11 +194,6 @@ def redraw_body_only():
         y, z = body_plan[st][i]
         p.set_offsets([[-y, z]] if st <= 10 else [[y, z]])
 
-    fig.canvas.draw_idle()
-
-def redraw_derived():
-    draw_half_breadth()
-    draw_sheer()
     fig.canvas.draw_idle()
 
 #Interaction(Click & Drag) - UNIFIED FOR ALL THREE VIEWS
